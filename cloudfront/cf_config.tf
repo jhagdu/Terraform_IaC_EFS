@@ -1,8 +1,22 @@
+variable "origin_id" {}
+variable "domain_name" {}
+
+variable "dependencies" {
+  type    = "list"
+  default = []
+}
+
+resource "null_resource" "get_dependency" {
+  provisioner "local-exec" {
+    command = "echo ${length(var.dependencies)}"
+  }
+}
+
 //Creating CloutFront with S3 Bucket Origin
 resource "aws_cloudfront_distribution" "s3-web-distribution" {
   origin {
-    domain_name = "${aws_s3_bucket.web-bucket.bucket_regional_domain_name}"
-    origin_id   = "${aws_s3_bucket.web-bucket.id}"
+    domain_name = "${var.domain_name}"
+    origin_id   = "${var.origin_id}"
   }
 
   enabled             = true
@@ -12,7 +26,7 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
   default_cache_behavior {
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "${aws_s3_bucket.web-bucket.id}"
+    target_origin_id = "${var.origin_id}"
 
     forwarded_values {
       query_string = false
@@ -45,6 +59,14 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
   }
 
   depends_on = [
-    aws_s3_bucket.web-bucket
+    null_resource.get_dependency,
+  ]
+}
+
+output "cf_domain_name" {
+  value = "${aws_cloudfront_distribution.s3-web-distribution.domain_name}"
+
+  depends_on = [
+    aws_cloudfront_distribution.s3-web-distribution,
   ]
 }

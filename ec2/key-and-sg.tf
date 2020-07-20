@@ -1,3 +1,5 @@
+variable "vpc" {}
+
 //Creating Key
 resource "tls_private_key" "tls_key" {
   algorithm = "RSA"
@@ -67,7 +69,7 @@ resource "aws_security_group" "efs-sg" {
     from_port   = 2049
     to_port     = 2049
     protocol    = "tcp"
-    security_groups = [aws_security_group.web-SG.id]
+    security_groups = ["${aws_security_group.web-SG.id}"]
   }
 
   egress {
@@ -77,3 +79,12 @@ resource "aws_security_group" "efs-sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+output "efs_sg_id" {
+  value = "${aws_security_group.efs-sg.id}"
+}
+
+output "private_key_pem" {
+  value = "${tls_private_key.tls_key.private_key_pem}"
+}
+

@@ -1,3 +1,22 @@
+variable "vpc" {}
+variable "efs_sg_id" {}
+variable "private_key_pem" {}
+variable "instance_public_ip" {}
+variable "cf_domain_name" {}
+variable "instance_az" {}
+
+
+variable "dependencies" {
+  type    = "list"
+  default = []
+}
+
+resource "null_resource" "get_dependency" {
+  provisioner "local-exec" {
+    command = "echo ${length(var.dependencies)}"
+  }
+}
+
 //Getting all Subnet IDs of a VPC
 data "aws_subnet_ids" "subnet" {
   vpc_id = var.vpc
@@ -17,7 +36,8 @@ resource "aws_efs_file_system" "file_system" {
   creation_token = "web-efs"
 
   depends_on = [
-    aws_instance.web
+    data.aws_subnet.subnets,
+    null_resource.get_dependency
   ]
 }
 
@@ -50,8 +70,8 @@ POLICY
 //Mount Targets of EFS Volume
 resource "aws_efs_mount_target" "mnt_trgt" {
   file_system_id  = "${aws_efs_file_system.file_system.id}"
-  subnet_id       = [for s in data.aws_subnet.subnets : s.id if s.availability_zone == aws_instance.web.availability_zone].0
-  security_groups = [aws_security_group.efs-sg.id]
+  subnet_id       = [for s in data.aws_subnet.subnets : s.id if s.availability_zone == var.instance_az].0
+  security_groups = ["${var.efs_sg_id}"]
 
 
   provisioner "remote-exec" {
@@ -59,19 +79,26 @@ resource "aws_efs_mount_target" "mnt_trgt" {
       agent       = "false"
       type        = "ssh"
       user        = "ec2-user"
-      private_key = "${tls_private_key.tls_key.private_key_pem}"
-      host        = "${aws_instance.web.public_ip}"
+      private_key = "${var.private_key_pem}"
+      host        = "${var.instance_public_ip}"
     }
     
     inline = [
-      "sudo mount aws_efs_file_system.file_system.dns_name:/ /var/www/html/",
-      "sudo sed -i 's/CF_URL_Here/${aws_cloudfront_distribution.s3-web-distribution.domain_name}/g' /home/ec2-user/webapp.html",
+      "sudo mount ${aws_efs_file_system.file_system.dns_name}:/ /var/www/html/",
+      "sudo sed -i 's/CF_URL_Here/${var.cf_domain_name}/g' /home/ec2-user/webapp.html",
       "sudo cp /home/ec2-user/webapp.html /var/www/html/"
     ]
   }
 
   depends_on = [
-    aws_instance.web,
     aws_efs_file_system.file_system
+  ]
+}
+
+output "depended_on" {
+  value = "${aws_efs_mount_target.mnt_trgt.id}"
+
+  depends_on = [
+    aws_efs_mount_target.mnt_trgt,
   ]
 }

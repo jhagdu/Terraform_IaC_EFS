@@ -27,3 +27,11 @@ resource "aws_s3_bucket_object" "web-object3" {
   source = "iac3.png"
   acl    = "public-read"
 }
+
+output "bucket_id" {
+  value = "${aws_s3_bucket.web-bucket.id}"
+}
+
+output "bucket_domain_name" {
+  value = "${aws_s3_bucket.web-bucket.bucket_regional_domain_name}"
+}
